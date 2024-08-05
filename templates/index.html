@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Monitoring Portal</title>
+</head>
+<body>
+    <h1>Add Server</h1>
+    <form action="/add_server" method="POST">
+        <label for="ip">IP Address:</label>
+        <input type="text" id="ip" name="ip"><br>
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username"><br>
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password"><br>
+        <label for="port">Port:</label>
+        <input type="text" id="port" name="port"><br>
+        <label for="interval">Interval (minutes):</label>
+        <input type="text" id="interval" name="interval"><br>
+        <button type="submit">Add Server</button>
+    </form>
+</body>
+</html>
