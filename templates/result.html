@@ -6,8 +6,6 @@
     <title>Server Stats Results</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
-        var updateInterval = localStorage.getItem('updateInterval') || updateInterval;
-
         function fetchStats() {
             $.ajax({
                 url: '/stats',
@@ -43,14 +41,31 @@
         }
 
         $(document).ready(function() {
-            fetchStats(); // Fetch stats immediately when the page loads
-            setInterval(fetchStats, updateInterval); // Fetch stats at the specified interval
+            var interval = parseInt(localStorage.getItem('updateInterval'), 10) || 5000; // Default to 5 seconds
+            window.fetchInterval = setInterval(fetchStats, interval);
+
+            $('#intervalForm').on('submit', function(event) {
+                event.preventDefault();
+                var newInterval = $('#interval').val();
+                if (newInterval && !isNaN(newInterval) && newInterval > 0) {
+                    localStorage.setItem('updateInterval', newInterval * 1000);
+                    clearInterval(window.fetchInterval);
+                    window.fetchInterval = setInterval(fetchStats, newInterval * 1000);
+                } else {
+                    alert('Please enter a valid interval in seconds.');
+                }
+            });
         });
     </script>
 </head>
 <body>
     <h1>Server Stats</h1>
     <div id="error"></div>
+    <form id="intervalForm">
+        <label for="interval">Update Interval (seconds):</label><br>
+        <input type="number" id="interval" name="interval" value="5" min="1" required><br><br>
+        <input type="submit" value="Update Interval">
+    </form>
     <table id="statsTable" border="1">
         <thead>
             <tr>

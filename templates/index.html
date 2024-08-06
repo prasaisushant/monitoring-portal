@@ -10,8 +10,6 @@
             if (interval && !isNaN(interval) && interval > 0) {
                 // Set the interval in local storage
                 localStorage.setItem('updateInterval', interval * 1000);
-                // Reload the page to apply the new interval
-                location.reload();
             } else {
                 alert('Please enter a valid interval in seconds.');
             }
@@ -31,7 +29,7 @@
         <input type="number" id="port" name="port" value="22" required><br>
         <label for="interval">Update Interval (seconds):</label><br>
         <input type="number" id="interval" name="interval" value="5" min="1" required><br><br>
-        <input type="submit" value="Get Stats">
+        <input type="submit" value="Get Stats" onclick="setIntervalValue()">
     </form>
 </body>
 </html>
