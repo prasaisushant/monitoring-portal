@@ -1,8 +1,15 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 import paramiko
 import re
+from threading import Thread
+import time
 
 app = Flask(__name__)
+
+# Global variables to store data and manage intervals
+server_data = []
+update_interval = 5  # Default interval in seconds
+stop_thread = False
 
 def get_server_stats(ip, username, password, port):
     try:
@@ -53,30 +60,58 @@ def get_server_stats(ip, username, password, port):
     except Exception as e:
         return {'error': str(e)}
 
+
+
+
+def background_task(ip, username, password, port):
+    global server_data, stop_thread
+    while not stop_thread:
+        stats = get_server_stats(ip, username, password, port)
+        stats['timestamp'] = time.time()
+        server_data.append(stats)
+        # Keep only the last 100 data points
+        if len(server_data) > 100:
+            server_data = server_data[-100:]
+        time.sleep(update_interval)
+
 @app.route("/", methods=["GET", "POST"])
 def index():
+    global update_interval, stop_thread
     if request.method == "POST":
         ip = request.form["ip"]
         username = request.form["username"]
         password = request.form["password"]
         port = int(request.form["port"])
-
-        stats = get_server_stats(ip, username, password, port)
-        return render_template("result.html", stats=stats)
+        update_interval = int(request.form["interval"])
+        
+        # Stop existing thread if running
+        stop_thread = True
+        time.sleep(update_interval + 1)
+        
+        # Start new background thread
+        stop_thread = False
+        thread = Thread(target=background_task, args=(ip, username, password, port))
+        thread.start()
+        
+        return redirect(url_for('result'))
     
     return render_template("index.html")
 
-@app.route("/stats", methods=["POST"])
+@app.route("/result")
+def result():
+    return render_template("result.html")
+
+@app.route("/stats")
 def stats():
-    ip = request.form["ip"]
-    username = request.form["username"]
-    password = request.form["password"]
-    port = int(request.form["port"])
+    global server_data
+    return jsonify(server_data)
 
-    stats = get_server_stats(ip, username, password, port)
-    return stats
-
+@app.route("/update_interval", methods=["POST"])
+def update_interval():
+    global update_interval
+    new_interval = int(request.form["interval"])
+    update_interval = new_interval
+    return jsonify({"status": "success", "new_interval": new_interval})
 
 if __name__ == "__main__":
     app.run(debug=True)
-
