@@ -6,6 +6,8 @@
     <title>Server Stats Results</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
+        var updateInterval = localStorage.getItem('updateInterval') || 5000;
+
         function fetchStats() {
             $.ajax({
                 url: '/stats',
@@ -42,7 +44,7 @@
 
         $(document).ready(function() {
             fetchStats(); // Fetch stats immediately when the page loads
-            setInterval(fetchStats, 5000); // Fetch stats every 5 seconds
+            setInterval(fetchStats, updateInterval); // Fetch stats at the specified interval
         });
     </script>
 </head>
