@@ -66,6 +66,17 @@ def index():
     
     return render_template("index.html")
 
+@app.route("/stats", methods=["POST"])
+def stats():
+    ip = request.form["ip"]
+    username = request.form["username"]
+    password = request.form["password"]
+    port = int(request.form["port"])
+
+    stats = get_server_stats(ip, username, password, port)
+    return stats
+
+
 if __name__ == "__main__":
     app.run(debug=True)
 

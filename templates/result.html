@@ -4,28 +4,65 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Server Stats Results</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        function fetchStats() {
+            $.ajax({
+                url: '/stats',
+                type: 'POST',
+                data: {
+                    ip: "{{ request.form['ip'] }}",
+                    username: "{{ request.form['username'] }}",
+                    password: "{{ request.form['password'] }}",
+                    port: "{{ request.form['port'] }}"
+                },
+                success: function(data) {
+                    if (data.error) {
+                        $('#error').text('Error: ' + data.error);
+                    } else {
+                        $('#error').text('');
+                        var timestamp = new Date().toLocaleTimeString();
+                        $('#statsTable tbody').append(
+                            '<tr>' +
+                            '<td>' + timestamp + '</td>' +
+                            '<td>' + data.cpu_usage.toFixed(2) + '%</td>' +
+                            '<td>' + data.mem_total + ' MB</td>' +
+                            '<td>' + data.mem_used + ' MB (' + (data.mem_used / data.mem_total * 100).toFixed(2) + '%)</td>' +
+                            '<td>' +
+                            data.storage_usage.map(function(partition) {
+                                return partition.filesystem + ': ' + partition.used + ' / ' + partition.total + ' (' + partition.used_percent + ')';
+                            }).join('<br>') +
+                            '</td>' +
+                            '</tr>'
+                        );
+                    }
+                }
+            });
+        }
+
+        $(document).ready(function() {
+            fetchStats(); // Fetch stats immediately when the page loads
+            setInterval(fetchStats, 5000); // Fetch stats every 5 seconds
+        });
+    </script>
 </head>
 <body>
     <h1>Server Stats</h1>
-    {% if stats.error %}
-        <p>Error: {{ stats.error }}</p>
-    {% else %}
-        <h2>CPU Usage:</h2>
-        <p>Used CPU: {{ stats.cpu_usage | round(2) }}%</p>
-
-        <h2>Memory Usage:</h2>
-        <p>Total Memory: {{ stats.mem_total }} MB</p>
-        <p>Used Memory: {{ stats.mem_used }} MB ({{ (stats.mem_used / stats.mem_total * 100) | round(2) }}%)</p>
-
-        <h2>Storage Usage:</h2>
-        <ul>
-        {% for partition in stats.storage_usage %}
-            <li>
-                <strong>{{ partition.filesystem }}</strong>: {{ partition.used }} / {{ partition.total }} ({{ partition.used_percent }})
-            </li>
-        {% endfor %}
-        </ul>
-    {% endif %}
+    <div id="error"></div>
+    <table id="statsTable" border="1">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>CPU Usage</th>
+                <th>Total Memory</th>
+                <th>Used Memory</th>
+                <th>Storage Usage</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- New rows will be appended here -->
+        </tbody>
+    </table>
     <br>
     <a href="{{ url_for('index') }}">Back</a>
 </body>
