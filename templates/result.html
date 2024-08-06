@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Stats Results</title>
+</head>
+<body>
+    <h1>Server Stats</h1>
+    {% if stats.error %}
+        <p>Error: {{ stats.error }}</p>
+    {% else %}
+        <h2>CPU Usage:</h2>
+        <p>Used CPU: {{ stats.cpu_usage | round(2) }}%</p>
+
+        <h2>Memory Usage:</h2>
+        <p>Total Memory: {{ stats.mem_total }} MB</p>
+        <p>Used Memory: {{ stats.mem_used }} MB ({{ (stats.mem_used / stats.mem_total * 100) | round(2) }}%)</p>
+
+        <h2>Storage Usage:</h2>
+        <ul>
+        {% for partition in stats.storage_usage %}
+            <li>
+                <strong>{{ partition.filesystem }}</strong>: {{ partition.used }} / {{ partition.total }} ({{ partition.used_percent }})
+            </li>
+        {% endfor %}
+        </ul>
+    {% endif %}
+    <br>
+    <a href="{{ url_for('index') }}">Back</a>
+</body>
+</html>

@@ -1,139 +1,71 @@
-from flask import Flask, request, render_template, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for
 import paramiko
-import psutil
-import pandas as pd
-from sqlalchemy import create_engine
-from apscheduler.schedulers.background import BackgroundScheduler
-import matplotlib.pyplot as plt
-import seaborn as sns
-from io import BytesIO
-import base64
-from sklearn.linear_model import LinearRegression
-import numpy as np
+import re
 
 app = Flask(__name__)
 
-# Database setup
-DATABASE_URI = 'sqlite:///monitoring.db'
-engine = create_engine(DATABASE_URI)
+def get_server_stats(ip, username, password, port):
+    try:
+        # Establish SSH connection
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(ip, port=port, username=username, password=password)
 
-# Initialize the scheduler
-scheduler = BackgroundScheduler()
-scheduler.start()
+        # Retrieve CPU usage from /proc/stat
+        stdin, stdout, stderr = ssh.exec_command("cat /proc/stat | grep '^cpu '")
+        cpu_line = stdout.read().decode().strip()
+        cpu_times = list(map(int, cpu_line.split()[1:]))
+        idle_time = cpu_times[3]
+        total_time = sum(cpu_times)
+        used_cpu = 100.0 * (1 - idle_time / total_time)
 
-@app.route('/')
+        # Retrieve Memory usage from /proc/meminfo
+        stdin, stdout, stderr = ssh.exec_command("cat /proc/meminfo")
+        mem_info = stdout.read().decode().strip().split('\n')
+        mem_total = int(mem_info[0].split()[1]) // 1024  # Convert kB to MB
+        mem_free = int(mem_info[1].split()[1]) // 1024  # Convert kB to MB
+        mem_available = int(mem_info[2].split()[1]) // 1024  # Convert kB to MB
+        mem_used = mem_total - mem_available
+
+        # Retrieve Storage usage from df
+        stdin, stdout, stderr = ssh.exec_command("df -h --output=source,size,used,pcent | grep '^/'")
+        storage_lines = stdout.read().decode().strip().split('\n')
+        storage_usage = []
+        for line in storage_lines:
+            parts = re.split(r'\s+', line)
+            filesystem, total, used, used_percent = parts[0], parts[1], parts[2], parts[3]
+            storage_usage.append({
+                'filesystem': filesystem,
+                'total': total,
+                'used': used,
+                'used_percent': used_percent
+            })
+
+        ssh.close()
+
+        return {
+            'cpu_usage': used_cpu,
+            'mem_total': mem_total,
+            'mem_used': mem_used,
+            'storage_usage': storage_usage
+        }
+
+    except Exception as e:
+        return {'error': str(e)}
+
+@app.route("/", methods=["GET", "POST"])
 def index():
-    return render_template('index.html')
+    if request.method == "POST":
+        ip = request.form["ip"]
+        username = request.form["username"]
+        password = request.form["password"]
+        port = int(request.form["port"])
 
-@app.route('/add_server', methods=['POST'])
-def add_server():
-    ip = request.form['ip']
-    username = request.form['username']
-    password = request.form['password']
-    port = request.form['port']
-    interval = int(request.form['interval'])
+        stats = get_server_stats(ip, username, password, port)
+        return render_template("result.html", stats=stats)
     
-    # Store server details in the database
-    server = {'ip': ip, 'username': username, 'password': password, 'port': port, 'interval': interval}
-    df = pd.DataFrame([server])
-    df.to_sql('servers', engine, if_exists='append', index=False)
+    return render_template("index.html")
 
-    # Schedule data collection
-    scheduler.add_job(collect_data, 'interval', minutes=interval, args=[server])
-
-    return redirect(url_for('index'))
-
-def collect_data(server):
-    ip = server['ip']
-    username = server['username']
-    password = server['password']
-    port = server['port']
-
-    # Connect to the server via SSH
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(ip, username=username, password=password, port=int(port))
-
-    # Gather system information
-    stdin, stdout, stderr = ssh.exec_command('top -bn1 | grep "Cpu(s)"')
-    cpu_usage = stdout.read().decode('utf-8').strip().split()[1]
-
-    stdin, stdout, stderr = ssh.exec_command('free -m')
-    memory_usage = stdout.read().decode('utf-8').strip().split()[8]
-
-    stdin, stdout, stderr = ssh.exec_command('df -h | grep "^/dev"')
-    storage_usage = stdout.read().decode('utf-8').strip().split()[4].replace('%', '')
-
-    stdin, stdout, stderr = ssh.exec_command('ifstat 1 1 | tail -1')
-    network_stats = stdout.read().decode('utf-8').strip().split()
-
-    # Close SSH connection
-    ssh.close()
-
-    # Store data in the database
-    data = {
-        'timestamp': pd.Timestamp.now(),
-        'cpu_usage': float(cpu_usage),
-        'memory_usage': float(memory_usage),
-        'storage_usage': float(storage_usage),
-        'network_stats': float(network_stats[0]),
-        'ip': ip
-    }
-    df = pd.DataFrame([data])
-    df.to_sql('monitoring_data', engine, if_exists='append', index=False)
-
-@app.route('/visualize')
-def visualize():
-    # Query the database for the collected data
-    df = pd.read_sql('monitoring_data', engine)
-    
-    # Generate visualizations using matplotlib or seaborn
-    fig, ax = plt.subplots(2, 2, figsize=(15, 10))
-    
-    sns.lineplot(x='timestamp', y='cpu_usage', data=df, ax=ax[0, 0])
-    ax[0, 0].set_title('CPU Usage Over Time')
-
-    sns.lineplot(x='timestamp', y='memory_usage', data=df, ax=ax[0, 1])
-    ax[0, 1].set_title('Memory Usage Over Time')
-
-    sns.lineplot(x='timestamp', y='storage_usage', data=df, ax=ax[1, 0])
-    ax[1, 0].set_title('Storage Usage Over Time')
-
-    sns.lineplot(x='timestamp', y='network_stats', data=df, ax=ax[1, 1])
-    ax[1, 1].set_title('Network Usage Over Time')
-    
-    # Save the figure to a BytesIO object
-    buf = BytesIO()
-    plt.savefig(buf, format="png")
-    buf.seek(0)
-    image_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-    buf.close()
-    
-    return render_template('visualize.html', image_base64=image_base64)
-
-@app.route('/predict')
-def predict():
-    df = pd.read_sql('monitoring_data', engine)
-
-    # Prepare the data for machine learning
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
-    df['timestamp'] = df['timestamp'].map(pd.Timestamp.timestamp)
-    
-    X = df[['timestamp']]
-    y_cpu = df['cpu_usage']
-    y_memory = df['memory_usage']
-    
-    model_cpu = LinearRegression().fit(X, y_cpu)
-    model_memory = LinearRegression().fit(X, y_memory)
-    
-    # Make predictions
-    future_timestamp = pd.Timestamp.now() + pd.Timedelta(days=1)
-    future_timestamp = future_timestamp.timestamp()
-    
-    predicted_cpu = model_cpu.predict([[future_timestamp]])
-    predicted_memory = model_memory.predict([[future_timestamp]])
-    
-    return render_template('predict.html', cpu=predicted_cpu[0], memory=predicted_memory[0])
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)
+

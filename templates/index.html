@@ -2,22 +2,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Monitoring Portal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Stats</title>
 </head>
 <body>
-    <h1>Add Server</h1>
-    <form action="/add_server" method="POST">
-        <label for="ip">IP Address:</label>
-        <input type="text" id="ip" name="ip"><br>
-        <label for="username">Username:</label>
-        <input type="text" id="username" name="username"><br>
-        <label for="password">Password:</label>
-        <input type="password" id="password" name="password"><br>
-        <label for="port">Port:</label>
-        <input type="text" id="port" name="port"><br>
-        <label for="interval">Interval (minutes):</label>
-        <input type="text" id="interval" name="interval"><br>
-        <button type="submit">Add Server</button>
+    <h1>Enter Server Credentials</h1>
+    <form method="post">
+        <label for="ip">IP Address:</label><br>
+        <input type="text" id="ip" name="ip" required><br>
+        <label for="username">Username:</label><br>
+        <input type="text" id="username" name="username" required><br>
+        <label for="password">Password:</label><br>
+        <input type="password" id="password" name="password" required><br>
+        <label for="port">SSH Port:</label><br>
+        <input type="number" id="port" name="port" value="22" required><br><br>
+        <input type="submit" value="Get Stats">
     </form>
 </body>
 </html>
