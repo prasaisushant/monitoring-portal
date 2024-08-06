@@ -6,7 +6,7 @@
     <title>Server Stats Results</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
-        var updateInterval = localStorage.getItem('updateInterval') || 5000;
+        var updateInterval = localStorage.getItem('updateInterval') || updateInterval;
 
         function fetchStats() {
             $.ajax({
