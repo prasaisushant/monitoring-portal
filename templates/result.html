@@ -110,10 +110,8 @@
 
         function fetchStats() {
             $.getJSON('/stats', function(data) {
-                updateCharts(data);
-
                 $('#statsTable tbody').empty();
-                data.slice(-1).forEach(function(stat) {
+                data.forEach(function(stat) {
                     var date = new Date(stat.timestamp * 1000);
                     $('#statsTable tbody').append(
                         '<tr>' +
@@ -128,6 +126,7 @@
         }
 
         $(document).ready(function() {
+            setInterval(fetchStats, 1000);  // Update every second
             initCharts();
             setInterval(fetchStats, 1000);
 
@@ -145,5 +144,29 @@
             });
         });
     </script>
+</head>
+<body>
+    <h1>Server Stats</h1>
+    <form id="intervalForm">
+        <label for="interval">Update Interval (seconds):</label><br>
+        <input type="number" id="interval" name="interval" value="5" min="1" required><br><br>
+        <input type="submit" value="Update Interval">
+    </form>
+    <table id="statsTable" border="1">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>CPU Usage</th>
+                <th>Total Memory</th>
+                <th>Used Memory</th>
+                <th>Storage Usage</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Rows will be populated here -->
+        </tbody>
+    </table>
+    <br>
+    <a href="{{ url_for('index') }}">Back</a>
 </body>
 </html>
