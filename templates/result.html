@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -33,9 +34,10 @@
         <thead>
             <tr>
                 <th>Timestamp</th>
-                <th>Node Name</th>
-                <th>CPU Usage (cores)</th>
-                <th>Memory Usage (MiB)</th>
+                <th>CPU Usage</th>
+                <th>Total Memory</th>
+                <th>Used Memory</th>
+                <th>Storage Usage</th>
             </tr>
         </thead>
         <tbody>
@@ -55,7 +57,7 @@
                 data: {
                     labels: [],
                     datasets: [{
-                        label: 'CPU Usage (cores)',
+                        label: 'CPU Usage (%)',
                         data: [],
                         borderColor: 'rgb(75, 192, 192)',
                         tension: 0.1
@@ -65,7 +67,8 @@
                     responsive: true,
                     scales: {
                         y: {
-                            beginAtZero: true
+                            beginAtZero: true,
+                            max: 100
                         }
                     }
                 }
@@ -77,7 +80,7 @@
                 data: {
                     labels: [],
                     datasets: [{
-                        label: 'Memory Usage (MiB)',
+                        label: 'Memory Usage (%)',
                         data: [],
                         borderColor: 'rgb(255, 99, 132)',
                         tension: 0.1
@@ -87,7 +90,8 @@
                     responsive: true,
                     scales: {
                         y: {
-                            beginAtZero: true
+                            beginAtZero: true,
+                            max: 100
                         }
                     }
                 }
@@ -97,7 +101,7 @@
         function updateCharts(data) {
             const labels = data.map(d => new Date(d.timestamp * 1000).toLocaleTimeString());
             const cpuData = data.map(d => d.cpu_usage);
-            const memData = data.map(d => d.memory_usage);
+            const memData = data.map(d => (d.mem_used / d.mem_total) * 100);
 
             cpuChart.data.labels = labels;
             cpuChart.data.datasets[0].data = cpuData;
@@ -110,15 +114,22 @@
 
         function fetchStats() {
             $.getJSON('/stats', function(data) {
+                updateCharts(data);
+
                 $('#statsTable tbody').empty();
-                data.forEach(function(stat) {
+                data.slice(-1).forEach(function(stat) {
                     var date = new Date(stat.timestamp * 1000);
                     $('#statsTable tbody').append(
                         '<tr>' +
                         '<td>' + date.toLocaleString() + '</td>' +
-                        '<td>' + stat.node_name + '</td>' +
-                        '<td>' + stat.cpu_usage.toFixed(2) + '</td>' +
-                        '<td>' + stat.memory_usage + '</td>' +
+                        '<td>' + stat.cpu_usage.toFixed(2) + '%</td>' +
+                        '<td>' + stat.mem_total + ' MB</td>' +
+                        '<td>' + stat.mem_used + ' MB (' + (stat.mem_used / stat.mem_total * 100).toFixed(2) + '%)</td>' +
+                        '<td>' +
+                        stat.storage_usage.map(function(partition) {
+                            return partition.filesystem + ': ' + partition.used + ' / ' + partition.total + ' (' + partition.used_percent + ')';
+                        }).join('<br>') +
+                        '</td>' +
                         '</tr>'
                     );
                 });
@@ -126,9 +137,8 @@
         }
 
         $(document).ready(function() {
-            setInterval(fetchStats, 1000);  // Update every second
             initCharts();
-            setInterval(fetchStats, 1000);
+            setInterval(fetchStats, 1000);  // Update every second
 
             $('#intervalForm').on('submit', function(event) {
                 event.preventDefault();
@@ -136,7 +146,6 @@
                 $.post('/update_interval', {interval: newInterval}, function(response) {
                     if (response.status === 'success') {
                         alert('Interval updated to ' + response.new_interval + ' seconds');
-                        fetchStats(); // Optionally fetch stats immediately
                     } else {
                         alert('Failed to update interval');
                     }
@@ -144,29 +153,5 @@
             });
         });
     </script>
-</head>
-<body>
-    <h1>Server Stats</h1>
-    <form id="intervalForm">
-        <label for="interval">Update Interval (seconds):</label><br>
-        <input type="number" id="interval" name="interval" value="5" min="1" required><br><br>
-        <input type="submit" value="Update Interval">
-    </form>
-    <table id="statsTable" border="1">
-        <thead>
-            <tr>
-                <th>Timestamp</th>
-                <th>CPU Usage</th>
-                <th>Total Memory</th>
-                <th>Used Memory</th>
-                <th>Storage Usage</th>
-            </tr>
-        </thead>
-        <tbody>
-            <!-- Rows will be populated here -->
-        </tbody>
-    </table>
-    <br>
-    <a href="{{ url_for('index') }}">Back</a>
 </body>
 </html>
