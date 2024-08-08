@@ -1,157 +1,80 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Server Stats Results</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        .chart-container {
-            width: 80%;
-            margin: 20px auto;
+    <title>Kubernetes Node Stats Results</title>
+    <script>
+        let fetchInterval = 5000; // Default interval of 5 seconds
+        let intervalId;
+
+        function fetchStats() {
+            fetch('/stats')
+                .then(response => response.json())
+                .then(data => {
+                    const tableBody = document.getElementById('statsTableBody');
+                    tableBody.innerHTML = '';  // Clear existing data
+
+                    data.forEach(entry => {
+                        entry.node_stats.forEach(stat => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${new Date(entry.timestamp * 1000).toLocaleString()}</td>
+                                <td>${stat.node}</td>
+                                <td>${stat.cpu_usage}</td>
+                                <td>${stat.cpu_percentage}</td>
+                                <td>${stat.memory_usage}</td>
+                                <td>${stat.memory_percentage}</td>
+                            `;
+                            tableBody.appendChild(row);
+                        });
+                    });
+                });
         }
-    </style>
+
+        function updateInterval() {
+            const newInterval = parseInt(document.getElementById('intervalInput').value) * 1000;
+            if (intervalId) {
+                clearInterval(intervalId); // Clear the existing interval
+            }
+            fetchInterval = newInterval;
+            fetchStats(); // Fetch immediately
+            intervalId = setInterval(fetchStats, fetchInterval); // Set the new interval
+            // Update server-side interval
+            fetch('/update_interval', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ interval: newInterval / 1000 }) // Send interval in seconds
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            intervalId = setInterval(fetchStats, fetchInterval); // Initialize with default interval
+        });
+    </script>
 </head>
 <body>
-    <h1>Server Stats</h1>
-    <form id="intervalForm">
-        <label for="interval">Update Interval (seconds):</label><br>
-        <input type="number" id="interval" name="interval" value="5" min="1" required><br><br>
-        <input type="submit" value="Update Interval">
-    </form>
-
-    <div class="chart-container">
-        <canvas id="cpuChart"></canvas>
-    </div>
-    <div class="chart-container">
-        <canvas id="memoryChart"></canvas>
-    </div>
-
-    <h2>Latest Stats</h2>
-    <table id="statsTable" border="1">
+    <h1>Kubernetes Node Stats</h1>
+    <label for="intervalInput">Update Interval (seconds):</label>
+    <input type="number" id="intervalInput" value="5" min="1">
+    <button onclick="updateInterval()">Update Interval</button>
+    
+    <table border="1">
         <thead>
             <tr>
                 <th>Timestamp</th>
-                <th>CPU Usage</th>
-                <th>Total Memory</th>
-                <th>Used Memory</th>
-                <th>Storage Usage</th>
+                <th>Node</th>
+                <th>CPU Usage (m)</th>
+                <th>CPU Percentage</th>
+                <th>Memory Usage (Mi)</th>
+                <th>Memory Percentage</th>
             </tr>
         </thead>
-        <tbody>
-            <!-- Rows will be populated here -->
+        <tbody id="statsTableBody">
+            <!-- Data will be injected here -->
         </tbody>
     </table>
     <br>
-    <a href="{{ url_for('index') }}">Back</a>
-
-    <script>
-        let cpuChart, memoryChart;
-
-        function initCharts() {
-            const cpuCtx = document.getElementById('cpuChart').getContext('2d');
-            cpuChart = new Chart(cpuCtx, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'CPU Usage (%)',
-                        data: [],
-                        borderColor: 'rgb(75, 192, 192)',
-                        tension: 0.1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100
-                        }
-                    }
-                }
-            });
-
-            const memCtx = document.getElementById('memoryChart').getContext('2d');
-            memoryChart = new Chart(memCtx, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'Memory Usage (%)',
-                        data: [],
-                        borderColor: 'rgb(255, 99, 132)',
-                        tension: 0.1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100
-                        }
-                    }
-                }
-            });
-        }
-
-        function updateCharts(data) {
-            const labels = data.map(d => new Date(d.timestamp * 1000).toLocaleTimeString());
-            const cpuData = data.map(d => d.cpu_usage);
-            const memData = data.map(d => (d.mem_used / d.mem_total) * 100);
-
-            cpuChart.data.labels = labels;
-            cpuChart.data.datasets[0].data = cpuData;
-            cpuChart.update();
-
-            memoryChart.data.labels = labels;
-            memoryChart.data.datasets[0].data = memData;
-            memoryChart.update();
-        }
-
-        function fetchStats() {
-            $.getJSON('/stats', function(data) {
-                updateCharts(data);
-
-                $('#statsTable tbody').empty();
-                data.slice(-1).forEach(function(stat) {
-                    var date = new Date(stat.timestamp * 1000);
-                    $('#statsTable tbody').append(
-                        '<tr>' +
-                        '<td>' + date.toLocaleString() + '</td>' +
-                        '<td>' + stat.cpu_usage.toFixed(2) + '%</td>' +
-                        '<td>' + stat.mem_total + ' MB</td>' +
-                        '<td>' + stat.mem_used + ' MB (' + (stat.mem_used / stat.mem_total * 100).toFixed(2) + '%)</td>' +
-                        '<td>' +
-                        stat.storage_usage.map(function(partition) {
-                            return partition.filesystem + ': ' + partition.used + ' / ' + partition.total + ' (' + partition.used_percent + ')';
-                        }).join('<br>') +
-                        '</td>' +
-                        '</tr>'
-                    );
-                });
-            });
-        }
-
-        $(document).ready(function() {
-            initCharts();
-            setInterval(fetchStats, 1000);  // Update every second
-
-            $('#intervalForm').on('submit', function(event) {
-                event.preventDefault();
-                var newInterval = $('#interval').val();
-                $.post('/update_interval', {interval: newInterval}, function(response) {
-                    if (response.status === 'success') {
-                        alert('Interval updated to ' + response.new_interval + ' seconds');
-                    } else {
-                        alert('Failed to update interval');
-                    }
-                });
-            });
-        });
-    </script>
+    <a href="/">Back</a>
 </body>
 </html>

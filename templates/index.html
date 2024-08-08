@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Stats</title>
+</head>
+<body>
+    <h1>Enter Server Credentials</h1>
+    <form method="post" action="/">
+        <label for="ip">IP Address:</label><br>
+        <input type="text" id="ip" name="ip" required><br>
+        <label for="username">Username:</label><br>
+        <input type="text" id="username" name="username" required><br>
+        <label for="password">Password:</label><br>
+        <input type="password" id="password" name="password" required><br>
+        <label for="port">SSH Port:</label><br>
+        <input type="number" id="port" name="port" value="22" required><br>
+        <label for="interval">Update Interval (seconds):</label><br>
+        <input type="number" id="interval" name="interval" value="5" min="1" required><br><br>
+        <input type="submit" value="Get Stats">
+    </form>
+</body>
+</html>

@@ -1,99 +1,82 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify  # Make sure redirect is imported
 import paramiko
-import re
-from threading import Thread
 import time
+from threading import Thread
 
 app = Flask(__name__)
 
 # Global variables to store data and manage intervals
 server_data = []
-update_interval = 5  # Default interval in seconds
+intervals = []  # List to store intervals
 stop_thread = False
 
-def get_server_stats(ip, username, password, port):
+def get_kubernetes_node_stats(ip, username, password, port):
     try:
-        # Establish SSH connection
+        # Establish SSH connection to the Kubernetes master node
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(ip, port=port, username=username, password=password)
 
-        # Retrieve CPU usage from /proc/stat
-        stdin, stdout, stderr = ssh.exec_command("cat /proc/stat | grep '^cpu '")
-        cpu_line = stdout.read().decode().strip()
-        cpu_times = list(map(int, cpu_line.split()[1:]))
-        idle_time = cpu_times[3]
-        total_time = sum(cpu_times)
-        used_cpu = 100.0 * (1 - idle_time / total_time)
-
-        # Retrieve Memory usage from /proc/meminfo
-        stdin, stdout, stderr = ssh.exec_command("cat /proc/meminfo")
-        mem_info = stdout.read().decode().strip().split('\n')
-        mem_total = int(mem_info[0].split()[1]) // 1024  # Convert kB to MB
-        mem_free = int(mem_info[1].split()[1]) // 1024  # Convert kB to MB
-        mem_available = int(mem_info[2].split()[1]) // 1024  # Convert kB to MB
-        mem_used = mem_total - mem_available
-
-        # Retrieve Storage usage from df
-        stdin, stdout, stderr = ssh.exec_command("df -h --output=source,size,used,pcent | grep '^/'")
-        storage_lines = stdout.read().decode().strip().split('\n')
-        storage_usage = []
-        for line in storage_lines:
-            parts = re.split(r'\s+', line)
-            filesystem, total, used, used_percent = parts[0], parts[1], parts[2], parts[3]
-            storage_usage.append({
-                'filesystem': filesystem,
-                'total': total,
-                'used': used,
-                'used_percent': used_percent
-            })
+        # Execute kubectl command to get node stats
+        stdin, stdout, stderr = ssh.exec_command("kubectl top nodes --no-headers")
+        output = stdout.read().decode().strip()
 
         ssh.close()
 
+        # Parse the output into a structured format
+        lines = output.split("\n")
+        node_stats = []
+        for line in lines:
+            if line:
+                parts = line.split()
+                node_stats.append({
+                    'node': parts[0],
+                    'cpu_usage': parts[1],
+                    'cpu_percentage': parts[2],
+                    'memory_usage': parts[3],
+                    'memory_percentage': parts[4]
+                })
+
         return {
-            'cpu_usage': used_cpu,
-            'mem_total': mem_total,
-            'mem_used': mem_used,
-            'storage_usage': storage_usage
+            'node_stats': node_stats,
+            'timestamp': time.time()
         }
 
     except Exception as e:
         return {'error': str(e)}
 
-
-
-
 def background_task(ip, username, password, port):
-    global server_data, stop_thread
+    global server_data, stop_thread, intervals
     while not stop_thread:
-        stats = get_server_stats(ip, username, password, port)
-        stats['timestamp'] = time.time()
-        server_data.append(stats)
-        # Keep only the last 100 data points
-        if len(server_data) > 100:
-            server_data = server_data[-100:]
-        time.sleep(update_interval)
+        for interval in intervals:
+            stats = get_kubernetes_node_stats(ip, username, password, port)
+            server_data.append(stats)
+            # Keep only the last 100 data points
+            if len(server_data) > 100:
+                server_data = server_data[-100:]
+            time.sleep(interval)
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    global update_interval, stop_thread
+    global stop_thread, intervals
     if request.method == "POST":
         ip = request.form["ip"]
         username = request.form["username"]
         password = request.form["password"]
         port = int(request.form["port"])
-        update_interval = int(request.form["interval"])
-        
+        new_interval = int(request.form["interval"])
+
         # Stop existing thread if running
         stop_thread = True
-        time.sleep(update_interval + 1)
-        
+        time.sleep(max(intervals) + 1 if intervals else 1)  # Wait for the longest interval
+
         # Start new background thread
         stop_thread = False
+        intervals = [new_interval]
         thread = Thread(target=background_task, args=(ip, username, password, port))
         thread.start()
         
-        return redirect(url_for('result'))
+        return redirect('/result')
     
     return render_template("index.html")
 
@@ -108,9 +91,9 @@ def stats():
 
 @app.route("/update_interval", methods=["POST"])
 def update_interval():
-    global update_interval
+    global intervals
     new_interval = int(request.form["interval"])
-    update_interval = new_interval
+    intervals = [new_interval]
     return jsonify({"status": "success", "new_interval": new_interval})
 
 if __name__ == "__main__":
