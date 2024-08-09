@@ -20,5 +20,22 @@
         <input type="number" id="interval" name="interval" value="5" min="1" required><br><br>
         <input type="submit" value="Get Stats">
     </form>
+    <br>
+    <form action="/terminal" method="get">
+        <input type="hidden" name="ip" id="terminal-ip">
+        <input type="hidden" name="username" id="terminal-username">
+        <input type="hidden" name="password" id="terminal-password">
+        <input type="hidden" name="port" id="terminal-port">
+        <input type="submit" value="Open Terminal">
+    </form>
+
+    <script>
+        document.querySelector('form[action="/terminal"]').addEventListener('submit', function(e) {
+            document.getElementById('terminal-ip').value = document.getElementById('ip').value;
+            document.getElementById('terminal-username').value = document.getElementById('username').value;
+            document.getElementById('terminal-password').value = document.getElementById('password').value;
+            document.getElementById('terminal-port').value = document.getElementById('port').value;
+        });
+    </script>
 </body>
 </html>

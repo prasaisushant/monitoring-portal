@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify  # Make sure redirect is imported
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 import paramiko
 import time
 from threading import Thread
@@ -16,13 +16,10 @@ def get_kubernetes_node_stats(ip, username, password, port):
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(ip, port=port, username=username, password=password)
-
         # Execute kubectl command to get node stats
         stdin, stdout, stderr = ssh.exec_command("kubectl top nodes --no-headers")
         output = stdout.read().decode().strip()
-
         ssh.close()
-
         # Parse the output into a structured format
         lines = output.split("\n")
         node_stats = []
@@ -36,12 +33,10 @@ def get_kubernetes_node_stats(ip, username, password, port):
                     'memory_usage': parts[3],
                     'memory_percentage': parts[4]
                 })
-
         return {
             'node_stats': node_stats,
             'timestamp': time.time()
         }
-
     except Exception as e:
         return {'error': str(e)}
 
@@ -56,6 +51,24 @@ def background_task(ip, username, password, port):
                 server_data = server_data[-100:]
             time.sleep(interval)
 
+def execute_command(ip, username, password, port, command):
+    try:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(ip, port=port, username=username, password=password)
+        
+        stdin, stdout, stderr = ssh.exec_command(command)
+        output = stdout.read().decode().strip()
+        error = stderr.read().decode().strip()
+        
+        ssh.close()
+        
+        if error:
+            return {"error": error}
+        return {"output": output}
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     global stop_thread, intervals
@@ -65,18 +78,19 @@ def index():
         password = request.form["password"]
         port = int(request.form["port"])
         new_interval = int(request.form["interval"])
-
+        
         # Stop existing thread if running
         stop_thread = True
         time.sleep(max(intervals) + 1 if intervals else 1)  # Wait for the longest interval
-
+        
         # Start new background thread
         stop_thread = False
         intervals = [new_interval]
         thread = Thread(target=background_task, args=(ip, username, password, port))
         thread.start()
         
-        return redirect('/result')
+        # Redirect to the result page
+        return redirect(url_for('result'))
     
     return render_template("index.html")
 
@@ -95,6 +109,27 @@ def update_interval():
     new_interval = int(request.form["interval"])
     intervals = [new_interval]
     return jsonify({"status": "success", "new_interval": new_interval})
+
+@app.route("/terminal")
+def terminal():
+    ip = request.args.get("ip", "")
+    username = request.args.get("username", "")
+    password = request.args.get("password", "")
+    port = request.args.get("port", "22")
+    
+    return render_template("terminal.html", ip=ip, username=username, password=password, port=port)
+
+@app.route("/execute", methods=["POST"])
+def execute():
+    data = request.json
+    ip = data.get("ip")
+    username = data.get("username")
+    password = data.get("password")
+    port = int(data.get("port", 22))
+    command = data.get("command")
+    
+    result = execute_command(ip, username, password, port, command)
+    return jsonify(result)
 
 if __name__ == "__main__":
     app.run(debug=True)

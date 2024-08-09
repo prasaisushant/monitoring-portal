@@ -7,14 +7,12 @@
     <script>
         let fetchInterval = 5000; // Default interval of 5 seconds
         let intervalId;
-
         function fetchStats() {
             fetch('/stats')
                 .then(response => response.json())
                 .then(data => {
                     const tableBody = document.getElementById('statsTableBody');
                     tableBody.innerHTML = '';  // Clear existing data
-
                     data.forEach(entry => {
                         entry.node_stats.forEach(stat => {
                             const row = document.createElement('tr');
@@ -31,7 +29,6 @@
                     });
                 });
         }
-
         function updateInterval() {
             const newInterval = parseInt(document.getElementById('intervalInput').value) * 1000;
             if (intervalId) {
@@ -47,7 +44,6 @@
                 body: new URLSearchParams({ interval: newInterval / 1000 }) // Send interval in seconds
             });
         }
-
         document.addEventListener('DOMContentLoaded', function() {
             intervalId = setInterval(fetchStats, fetchInterval); // Initialize with default interval
         });
