@@ -7,7 +7,7 @@
     <script>
         let fetchInterval = 5000; // Default interval of 5 seconds
         let intervalId;
-        
+
         function fetchStats() {
             fetch('/stats')
                 .then(response => response.json())
@@ -30,7 +30,7 @@
                     });
                 });
         }
-        
+
         function updateInterval() {
             const newInterval = parseInt(document.getElementById('intervalInput').value) * 1000;
             if (intervalId) {
@@ -46,7 +46,7 @@
                 body: new URLSearchParams({ interval: newInterval / 1000 }) // Send interval in seconds
             });
         }
-        
+
         document.addEventListener('DOMContentLoaded', function() {
             intervalId = setInterval(fetchStats, fetchInterval); // Initialize with default interval
         });
@@ -57,7 +57,7 @@
     <label for="intervalInput">Update Interval (seconds):</label>
     <input type="number" id="intervalInput" value="5" min="1">
     <button onclick="updateInterval()">Update Interval</button>
-    
+
     <table border="1">
         <thead>
             <tr>
