@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, jsonify, s
 import paramiko
 import time
 from threading import Thread, Event
+import sqlite3
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Change this to a real secret key
@@ -10,6 +11,33 @@ app.secret_key = 'your_secret_key'  # Change this to a real secret key
 server_data = []
 intervals = []  # List to store intervals
 stop_thread_event = Event()
+
+def init_db():
+    conn = sqlite3.connect('server_stats.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            node TEXT,
+            cpu_usage TEXT,
+            cpu_percentage TEXT,
+            memory_usage TEXT,
+            memory_percentage TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def store_stats(node, cpu_usage, cpu_percentage, memory_usage, memory_percentage):
+    conn = sqlite3.connect('server_stats.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO stats (node, cpu_usage, cpu_percentage, memory_usage, memory_percentage)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (node, cpu_usage, cpu_percentage, memory_usage, memory_percentage))
+    conn.commit()
+    conn.close()
 
 def get_kubernetes_node_stats(ip, username, password, port):
     try:
@@ -23,19 +51,12 @@ def get_kubernetes_node_stats(ip, username, password, port):
         ssh.close()
         # Parse the output into a structured format
         lines = output.split("\n")
-        node_stats = []
         for line in lines:
             if line:
                 parts = line.split()
-                node_stats.append({
-                    'node': parts[0],
-                    'cpu_usage': parts[1],
-                    'cpu_percentage': parts[2],
-                    'memory_usage': parts[3],
-                    'memory_percentage': parts[4]
-                })
+                store_stats(parts[0], parts[1], parts[2], parts[3], parts[4])
         return {
-            'node_stats': node_stats,
+            'node_stats': [dict(zip(['node', 'cpu_usage', 'cpu_percentage', 'memory_usage', 'memory_percentage'], parts)) for parts in [line.split() for line in lines if line]],
             'timestamp': time.time()
         }
     except Exception as e:
@@ -112,8 +133,21 @@ def terminal():
 
 @app.route("/stats")
 def stats():
-    global server_data
-    return jsonify(server_data)
+    conn = sqlite3.connect('server_stats.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM stats ORDER BY timestamp DESC LIMIT 100')
+    rows = cursor.fetchall()
+    conn.close()
+    return jsonify(rows)
+
+@app.route("/data")
+def data():
+    conn = sqlite3.connect('server_stats.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM stats ORDER BY timestamp DESC')
+    rows = cursor.fetchall()
+    conn.close()
+    return jsonify(rows)
 
 @app.route("/update_interval", methods=["POST"])
 def update_interval():
@@ -134,4 +168,5 @@ def execute():
     return jsonify(result)
 
 if __name__ == "__main__":
+    init_db()
     app.run(debug=True)

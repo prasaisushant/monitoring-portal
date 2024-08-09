@@ -3,77 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kubernetes Node Stats Results</title>
+    <title>Server Stats Results</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        let fetchInterval = 5000; // Default interval of 5 seconds
-        let intervalId;
-
         function fetchStats() {
-            fetch('/stats')
-                .then(response => response.json())
-                .then(data => {
-                    const tableBody = document.getElementById('statsTableBody');
-                    tableBody.innerHTML = '';  // Clear existing data
-                    data.forEach(entry => {
-                        entry.node_stats.forEach(stat => {
-                            const row = document.createElement('tr');
-                            row.innerHTML = `
-                                <td>${new Date(entry.timestamp * 1000).toLocaleString()}</td>
-                                <td>${stat.node}</td>
-                                <td>${stat.cpu_usage}</td>
-                                <td>${stat.cpu_percentage}</td>
-                                <td>${stat.memory_usage}</td>
-                                <td>${stat.memory_percentage}</td>
-                            `;
-                            tableBody.appendChild(row);
+            $.ajax({
+                url: '/data',
+                type: 'GET',
+                success: function(data) {
+                    if (data.error) {
+                        $('#error').text('Error: ' + data.error);
+                    } else {
+                        var timestamps = [];
+                        var cpuUsageData = [];
+                        var memUsageData = [];
+                        data.forEach(function(row) {
+                            timestamps.push(new Date(row[6]).toLocaleTimeString());
+                            cpuUsageData.push(parseFloat(row[2]));
+                            memUsageData.push((parseFloat(row[4]) / parseFloat(row[3]) * 100).toFixed(2));
                         });
-                    });
-                });
-        }
 
-        function updateInterval() {
-            const newInterval = parseInt(document.getElementById('intervalInput').value) * 1000;
-            if (intervalId) {
-                clearInterval(intervalId); // Clear the existing interval
-            }
-            fetchInterval = newInterval;
-            fetchStats(); // Fetch immediately
-            intervalId = setInterval(fetchStats, fetchInterval); // Set the new interval
-            // Update server-side interval
-            fetch('/update_interval', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ interval: newInterval / 1000 }) // Send interval in seconds
+                        var ctx1 = document.getElementById('cpuChart').getContext('2d');
+                        new Chart(ctx1, {
+                            type: 'line',
+                            data: {
+                                labels: timestamps,
+                                datasets: [{
+                                    label: 'CPU Usage (%)',
+                                    data: cpuUsageData,
+                                    borderColor: 'rgba(75, 192, 192, 1)',
+                                    borderWidth: 2,
+                                    fill: false
+                                }]
+                            },
+                            options: {
+                                scales: {
+                                    x: {
+                                        title: { display: true, text: 'Time' }
+                                    },
+                                    y: {
+                                        beginAtZero: true,
+                                        title: { display: true, text: 'CPU Usage (%)' }
+                                    }
+                                }
+                            }
+                        });
+
+                        var ctx2 = document.getElementById('memChart').getContext('2d');
+                        new Chart(ctx2, {
+                            type: 'line',
+                            data: {
+                                labels: timestamps,
+                                datasets: [{
+                                    label: 'Memory Usage (%)',
+                                    data: memUsageData,
+                                    borderColor: 'rgba(255, 99, 132, 1)',
+                                    borderWidth: 2,
+                                    fill: false
+                                }]
+                            },
+                            options: {
+                                scales: {
+                                    x: {
+                                        title: { display: true, text: 'Time' }
+                                    },
+                                    y: {
+                                        beginAtZero: true,
+                                        title: { display: true, text: 'Memory Usage (%)' }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
             });
         }
 
-        document.addEventListener('DOMContentLoaded', function() {
-            intervalId = setInterval(fetchStats, fetchInterval); // Initialize with default interval
+        $(document).ready(function() {
+            fetchStats();  // Fetch initial stats
+            var interval = parseInt(localStorage.getItem('updateInterval'), 10) || 5000;
+            setInterval(fetchStats, interval);
+
+            $('#intervalForm').on('submit', function(event) {
+                event.preventDefault();
+                var newInterval = $('#interval').val();
+                if (newInterval && !isNaN(newInterval) && newInterval > 0) {
+                    localStorage.setItem('updateInterval', newInterval * 1000);
+                    clearInterval(window.fetchInterval);
+                    window.fetchInterval = setInterval(fetchStats, newInterval * 1000);
+                    $.post('/update_interval', { interval: newInterval }, function(response) {
+                        console.log('Interval updated:', response);
+                    });
+                } else {
+                    alert('Please enter a valid interval in seconds.');
+                }
+            });
         });
     </script>
 </head>
 <body>
-    <h1>Kubernetes Node Stats</h1>
-    <label for="intervalInput">Update Interval (seconds):</label>
-    <input type="number" id="intervalInput" value="5" min="1">
-    <button onclick="updateInterval()">Update Interval</button>
-
-    <table border="1">
-        <thead>
-            <tr>
-                <th>Timestamp</th>
-                <th>Node</th>
-                <th>CPU Usage (m)</th>
-                <th>CPU Percentage</th>
-                <th>Memory Usage (Mi)</th>
-                <th>Memory Percentage</th>
-            </tr>
-        </thead>
-        <tbody id="statsTableBody">
-            <!-- Data will be injected here -->
-        </tbody>
-    </table>
+    <h1>Server Stats</h1>
+    <div id="error"></div>
+    <form id="intervalForm">
+        <label for="interval">Update Interval (seconds):</label><br>
+        <input type="number" id="interval" name="interval" value="5" min="1" required><br><br>
+        <input type="submit" value="Update Interval">
+    </form>
+    <canvas id="cpuChart" width="400" height="200"></canvas>
+    <canvas id="memChart" width="400" height="200"></canvas>
     <br>
-    <a href="/">Back</a>
+    <a href="{{ url_for('index') }}">Back</a>
 </body>
 </html>
