@@ -70,38 +70,22 @@ def execute_command(ip, username, password, port, command):
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    global stop_thread, intervals
+    global stop_thread_event, intervals
     if request.method == "POST":
         ip = request.form["ip"]
         username = request.form["username"]
         password = request.form["password"]
         port = int(request.form["port"])
         new_interval = int(request.form["interval"])
-        action = request.form["action"]
-
-        if action == "get_stats":
-            # Stop existing thread if running
-            stop_thread = True
-            # Ensure the intervals list is not empty before using max
-            if intervals:
-                time.sleep(max(intervals) + 1)  # Wait for the longest interval
-            else:
-                time.sleep(1)  # Default wait time if intervals is empty
-            # Start new background thread
-            stop_thread = False
-            intervals = [new_interval]
-            thread = Thread(target=background_task, args=(ip, username, password, port))
-            thread.start()
-            
-            return redirect(url_for('result', ip=ip, username=username, port=port))
-        
-        elif action == "open_terminal":
-            return redirect(url_for('terminal', ip=ip, username=username, password=password, port=port))
-
+        print(f"Received IP: {ip}, Port: {port}, Username: {username}")
+        stop_thread_event.set()
+        stop_thread_event.wait()
+        stop_thread_event.clear()
+        intervals = [new_interval]
+        thread = Thread(target=background_task, args=(ip, username, password, port))
+        thread.start()
+        return redirect(url_for('result'))
     return render_template("index.html")
-
-
-
 
 @app.route("/result")
 def result():

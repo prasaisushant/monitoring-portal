@@ -18,15 +18,9 @@
         <input type="number" id="port" name="port" value="22" required><br>
         <label for="interval">Update Interval (seconds):</label><br>
         <input type="number" id="interval" name="interval" value="5" min="1" required><br><br>
-        
-        <!-- Hidden fields to determine action -->
-        <input type="hidden" name="action" value="get_stats">
         <input type="submit" value="Get Stats">
     </form>
     <br>
-    <form method="post" action="/">
-        <input type="hidden" name="action" value="open_terminal">
-        <input type="submit" value="Open Terminal">
-    </form>
+    <a href="/terminal">Open Terminal</a>
 </body>
 </html>
