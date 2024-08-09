@@ -13,7 +13,7 @@ intervals = []  # List to store intervals
 stop_thread_event = Event()
 
 def init_db():
-    conn = sqlite3.connect('server_stats.db')
+    conn = sqlite3.connect('D:\\monitoring-portal\\server_stats.db')
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS stats (
@@ -30,7 +30,7 @@ def init_db():
     conn.close()
 
 def store_stats(node, cpu_usage, cpu_percentage, memory_usage, memory_percentage):
-    conn = sqlite3.connect('server_stats.db')
+    conn = sqlite3.connect('D:\\monitoring-portal\\server_stats.db')
     cursor = conn.cursor()
     cursor.execute('''
         INSERT INTO stats (node, cpu_usage, cpu_percentage, memory_usage, memory_percentage)
@@ -133,7 +133,7 @@ def terminal():
 
 @app.route("/stats")
 def stats():
-    conn = sqlite3.connect('server_stats.db')
+    conn = sqlite3.connect('D:\\monitoring-portal\\server_stats.db')
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM stats ORDER BY timestamp DESC LIMIT 100')
     rows = cursor.fetchall()
@@ -142,7 +142,7 @@ def stats():
 
 @app.route("/data")
 def data():
-    conn = sqlite3.connect('server_stats.db')
+    conn = sqlite3.connect('D:\\monitoring-portal\\server_stats.db')
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM stats ORDER BY timestamp DESC')
     rows = cursor.fetchall()
