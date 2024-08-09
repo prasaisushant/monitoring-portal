@@ -1,9 +1,10 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session
 import paramiko
 import time
 from threading import Thread, Event
 
 app = Flask(__name__)
+app.secret_key = 'your_secret_key'  # Change this to a real secret key
 
 # Global variables to store data and manage intervals
 server_data = []
@@ -70,14 +71,19 @@ def execute_command(ip, username, password, port, command):
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    global stop_thread_event, intervals
     if request.method == "POST":
         ip = request.form["ip"]
         username = request.form["username"]
         password = request.form["password"]
         port = int(request.form["port"])
         new_interval = int(request.form["interval"])
-        print(f"Received IP: {ip}, Port: {port}, Username: {username}")
+        
+        # Store in session
+        session['ip'] = ip
+        session['username'] = username
+        session['password'] = password
+        session['port'] = port
+        
         stop_thread_event.set()
         stop_thread_event.wait()
         stop_thread_event.clear()
@@ -91,6 +97,19 @@ def index():
 def result():
     return render_template("result.html")
 
+@app.route("/terminal")
+def terminal():
+    ip = session.get("ip")
+    username = session.get("username")
+    password = session.get("password")
+    port = session.get("port")
+    
+    # Check if the required session data is available
+    if not ip or not username or not password or not port:
+        return redirect(url_for('index'))  # Redirect back to the index if session data is missing
+
+    return render_template("terminal.html", ip=ip, username=username, password=password, port=port)
+
 @app.route("/stats")
 def stats():
     global server_data
@@ -103,14 +122,6 @@ def update_interval():
     intervals = [new_interval]
     return jsonify({"status": "success", "new_interval": new_interval})
 
-@app.route("/terminal")
-def terminal():
-    ip = request.args.get("ip", "")
-    username = request.args.get("username", "")
-    password = request.args.get("password", "")
-    port = request.args.get("port", "22")
-    return render_template("terminal.html", ip=ip, username=username, password=password, port=port)
-
 @app.route("/execute", methods=["POST"])
 def execute():
     data = request.json
@@ -119,7 +130,6 @@ def execute():
     password = data.get("password")
     port = int(data.get("port", 22))
     command = data.get("command")
-    print(f"Executing command: {command} on {ip}:{port}")
     result = execute_command(ip, username, password, port, command)
     return jsonify(result)
 

@@ -42,10 +42,14 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.error) {
-                        terminal.innerHTML += `<div>Error: ${data.error}</div>`;
+                        terminal.innerHTML += `<div style="color: red;">Error: ${data.error}</div>`;
                     } else {
                         terminal.innerHTML += `<div>${data.output}</div>`;
                     }
+                    terminal.scrollTop = terminal.scrollHeight; // Scroll to the bottom
+                })
+                .catch(error => {
+                    terminal.innerHTML += `<div style="color: red;">Network Error: ${error}</div>`;
                     terminal.scrollTop = terminal.scrollHeight; // Scroll to the bottom
                 });
                 this.value = '';

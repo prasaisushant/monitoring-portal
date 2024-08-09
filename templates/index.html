@@ -4,10 +4,40 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Server Stats</title>
+    <script>
+        function handleAction(action) {
+            const ip = document.getElementById('ip').value;
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const port = document.getElementById('port').value;
+            const interval = document.getElementById('interval').value;
+            
+            fetch('/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    ip: ip,
+                    username: username,
+                    password: password,
+                    port: port,
+                    interval: interval,
+                    action: action
+                })
+            })
+            .then(response => response.text())
+            .then(() => {
+                if (action === 'stats') {
+                    window.location.href = '/result';
+                } else if (action === 'terminal') {
+                    window.location.href = '/terminal';
+                }
+            });
+        }
+    </script>
 </head>
 <body>
     <h1>Enter Server Credentials</h1>
-    <form method="post" action="/">
+    <form id="server-form">
         <label for="ip">IP Address:</label><br>
         <input type="text" id="ip" name="ip" required><br>
         <label for="username">Username:</label><br>
@@ -18,9 +48,8 @@
         <input type="number" id="port" name="port" value="22" required><br>
         <label for="interval">Update Interval (seconds):</label><br>
         <input type="number" id="interval" name="interval" value="5" min="1" required><br><br>
-        <input type="submit" value="Get Stats">
+        <button type="button" onclick="handleAction('stats')">Get Stats</button>
+        <button type="button" onclick="handleAction('terminal')">Open Terminal</button>
     </form>
-    <br>
-    <a href="/terminal">Open Terminal</a>
 </body>
 </html>
